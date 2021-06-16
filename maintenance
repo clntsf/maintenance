@@ -6,7 +6,7 @@ from datetime import datetime
 import tkinter as tk; from tkinter import filedialog
 import requests
 
-__version__ = '0.1.1'
+__version__ = '0.1.2'
 
 # user's root and current directories
 homedir = os.getenv('HOME')
@@ -19,9 +19,11 @@ def setup():
 	
 	# Auto-update
 	code_url = 'https://raw.githubusercontent.com/ctsf1/maintenance/main/maintenance'
-	new_version_code = requests.get(code_url, allow_redirects=True).content)
+	new_version_code = requests.get(code_url, allow_redirects=True).content
 	new_version_string = [item for item in str(new_version_code).split('\\n') if '__version__' in item][0][18:]
-	if int(new_version_string.replace('.', '')) > int(__version__.replace('.', '')): open(__file__, 'wb').write(new_version_code)
+	if int(new_version_string.replace('.', '')) > int(__version__.replace('.', '')):
+		print(f'Program auto-updated to version {new_version_string}')
+		open(__file__, 'wb').write(new_version_code)
 	
 	
 	# default lines to write into blank maintenance.txt file
