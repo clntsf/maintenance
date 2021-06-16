@@ -1,0 +1,156 @@
+#!/usr/bin/env python3
+
+import sys; import os
+from subprocess import run
+from datetime import datetime
+import tkinter as tk; from tkinter import filedialog
+
+__version__ = 0.1.0
+
+# user's root and current directories
+homedir = os.getenv('HOME')
+realdir = os.path.dirname(os.path.realpath(__file__))
+
+# Set up the program and auxilliary files
+def setup():
+	
+	global homedir; global realdir
+	# Check for new version
+	
+	
+	# default lines to write into blank maintenance.txt file
+	default_output_dir = f'{homedir}/desktop/maintenance_output'
+	default_lines = [default_output_dir, 'pip ()', 'numpy ()', 'pandas ()']
+	
+	if realdir != f'{homedir}/bin/maintenance':
+		run(['mkdir', f'{homedir}/bin/maintenance'], capture_output = False)		
+		run(['mv', __file__, f'{homedir}/bin/maintenance'], capture_output = False)
+		run(['chmod', '+x', '{homedir}/bin/maintenance/maintenance'], capture_output = True)
+		
+		txt_file_path = f'{homedir}/bin/maintenance'
+	
+		lines = open(f'{homedir}/.zprofile','r').readlines()
+		if 'alias maintenance=~/bin/maintenance/maintenance"' not in lines:		
+			with open(f'{homedir}/.zprofile','a') as writer: writer.write('alias maintenance=~/bin/maintenance/maintenance')
+		
+		if not 'maintenance.txt' in str(run(['ls', txt_file_path], capture_output = True).stdout):
+			with open(txt_file_path, 'w') as writer: writer.writelines([item + '\n' for item in default_lines])
+			if not os.path.isdir(default_output_dir): run(['mkdir', default_output_dir], capture_output = True)
+		
+		# Make sure the user has pip installed
+		user_has_pip = run(['python3', '-m', 'pip', '--version'], capture_output=True).stdout[:3] == b'pip'
+		if not user_has_pip: os.system('curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py; python3 get-pip.py')
+
+
+# Perform maintenance on files and send summary report
+def maintenance():
+
+	global realdir
+	print('Program running. Maintenance summary will open when complete')
+	
+	# Get current version numbers of all maintained packages
+	with open(f'{realdir}/maintenance.txt', 'r') as reader:
+		lines = reader.readlines(); summary_output_dir, pkgs = lines[0].rstrip('\n'), lines[1:]
+	
+	# Get name for output file
+	time_now = datetime.now().strftime('%Y-%m-%d %I.%M.%S %p')
+	output_file_name = f'Maintenance run {time_now}.txt'
+	output_file_name_clean = output_file_name.replace(" ","\ ")	
+	new_versions_text = [f'{summary_output_dir}\n']
+	
+	# Initialize dicts and list to store data for summary report
+	version_before_maintenance, version_after_maintenance = {}, {}
+	maintenance_summary = ['*'*50, f'Maintenance Report for {output_file_name}', '*'*50, '\n']
+
+	# Try to upgrade all maintained packages
+	for pkg in pkgs:
+	
+		pkg, version_before_maintenance[pkg] = pkg[:pkg.index('(')-1], [pkg[pkg.index('(')+2:-2], '[Not Installed]'][pkg[pkg.index('(')+1:-2] == '']
+			
+		out_msg = str(run(['pip', 'install', pkg, '-U'], capture_output = True).stdout)[1:].split('\\n')
+		version_after_maintenance[pkg] = str(run(['pip', 'show', pkg], capture_output = True).stdout).split('\\n')[1][9:]
+		
+		pkg_was_upgraded = not version_before_maintenance[pkg] == version_after_maintenance[pkg]
+		upgraded_str = [
+			f'not upgraded (version {version_before_maintenance[pkg]})',
+			f'upgraded from {version_before_maintenance[pkg]} to {version_after_maintenance[pkg]}'
+			][pkg_was_upgraded]
+		
+		maintenance_summary += ['*'*50, f'Module "{pkg}" was {upgraded_str}.'] + ['\nSystem Log: '] + out_msg + ['']
+		new_versions_text += [f'{pkg} (v{version_after_maintenance[pkg]})\n']
+	
+	# Create, write to and open the output file
+	run(['mkdir', f'{summary_output_dir}'], capture_output = True)
+	with open(f'{summary_output_dir}/{output_file_name}', 'w') as writer: writer.writelines([item + '\n' for item in maintenance_summary])
+	with open(f'{homedir}/bin/maintenance/maintenance.txt', 'w') as writer: writer.writelines(new_versions_text)
+	os.system(f'open {summary_output_dir}/{output_file_name_clean}')
+
+# Add package to list to be maintained
+def add_pkg(pkg):
+	global homedir
+	
+	with open(f'{homedir}/bin/maintenance/maintenance.txt', 'r') as reader:
+		pkg_in_file = any([pkg in line for line in reader.readlines()])
+	
+	if not pkg_in_file:
+		try: 
+			pkg_version = str(run(['pip', 'show', pkg], capture_output = True).stdout).split('\\n')[1][9:]
+			with open(f'{homedir}/bin/maintenance/maintenance.txt', 'a') as writer:	writer.writelines([f'{pkg} (v{pkg_version})\n'])
+			print(f'Package "{pkg}" successfully added \n')
+			
+		except IndexError: print('Package not recognized by pip.')
+		
+	else: print(f'The module "{pkg}" is already maintained.\nUse "maintenance remove (pkg)" to remove a module from the maintenance list.')
+	return
+
+
+# Remove Package from list to be maintained
+def remove_pkg(pkg):
+	global homedir
+	
+	with open(f'{homedir}/bin/maintenance/maintenance.txt', 'r') as reader:
+		lines = reader.readlines(); pkg_in_file = any([pkg in line for line in lines])
+	
+	if pkg_in_file:
+		with open(f'{homedir}/bin/maintenance/maintenance.txt', 'w') as writer: writer.writelines([line for line in lines if pkg not in line])
+		print(f'Package "{pkg}" successfully removed \n')
+		
+	else: print(f'The module "{pkg}" is not currently maintained.\nUse "maintenance add (pkg)" to add a module to the maintenance list.')
+	return
+
+
+# Change output directory
+def change_output():
+	global homedir
+	
+	if len(sys.argv) > 2: filepath = sys.argv
+	else:
+		root = tk.Tk(); root.withdraw()
+		filepath = filedialog.askdirectory()
+		
+	maintained_pkgs = open(f'{homedir}/bin/maintenance/maintenance.txt', 'r').readlines()[1:]
+	with open(f'{homedir}/bin/maintenance/maintenance.txt', 'w') as writer: writer.writelines([f'{filepath}\n']+maintained_pkgs)
+	
+	print(f'Summary output directory successfully changed. \nNew output directory is {filepath}')
+	return
+
+
+# List maintained packages
+def list_pkgs():
+	global homedir
+	
+	lines = open(f'{homedir}/bin/maintenance/maintenance.txt', 'r').readlines(); output_dir, pkgs = lines[0], lines[1:]
+	print(f'\n\033[1m\033[4mOutput directory for summary reports:\033[0m\n{output_dir}')
+	print(f'\033[1m\033[4mMaintained Packages:\033[0m\n{"".join(pkgs)}')
+
+# main function
+if __name__ == '__main__':
+
+	setup()
+	args = sys.argv
+	
+	if len(args) == 1: maintenance()
+	elif args[1] == 'add': {add_pkg(arg) for arg in args[2:]}
+	elif args[1] == 'remove': {remove_pkg(arg) for arg in args[2:]}
+	elif args[1] == 'output': change_output()
+	elif args[1] == 'list': list_pkgs()
