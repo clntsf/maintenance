@@ -17,15 +17,6 @@ def setup():
 	
 	global homedir; global realdir; global __version__
 	
-	# Auto-update
-	code_url = 'https://raw.githubusercontent.com/ctsf1/maintenance/main/maintenance'
-	new_version_code = requests.get(code_url, allow_redirects=True).content
-	new_version_string = [item for item in str(new_version_code).split('\\n') if '__version__' in item][0][16:-2]
-	if int(new_version_string.replace('.', '')) > int(__version__.replace('.', '')):
-		print(f'Program auto-updated to version {new_version_string}')
-		open(__file__, 'wb').write(new_version_code)
-	
-	
 	# default lines to write into blank maintenance.txt file
 	default_output_dir = f'{homedir}/desktop/maintenance_output'
 	default_lines = [default_output_dir, 'pip ()', 'numpy ()', 'pandas ()']
@@ -48,7 +39,15 @@ def setup():
 		# Make sure the user has pip installed
 		user_has_pip = run(['python3', '-m', 'pip', '--version'], capture_output=True).stdout[:3] == b'pip'
 		if not user_has_pip: os.system('curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py; python3 get-pip.py')
-
+	
+	# Auto-update
+	code_url = 'https://raw.githubusercontent.com/ctsf1/maintenance/main/maintenance'
+	new_version_code = requests.get(code_url, allow_redirects=True).content
+	new_version_string = [item for item in str(new_version_code).split('\\n') if '__version__' in item][0][16:-2]
+	
+	if int(new_version_string.replace('.', '')) > int(__version__.replace('.', '')):
+		print(f'Program auto-updated to version {new_version_string}')
+		open(__file__, 'wb').write(new_version_code)
 
 # Perform maintenance on files and send summary report
 def maintenance():
